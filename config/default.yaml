@@ -1,0 +1,81 @@
+# JIRA Time Tracker Configuration
+
+# Status transitions to track
+# Timer starts when ticket ENTERS start_status (first time)
+# Timer stops when ticket ENTERS any of end_statuses (first time after start)
+status_transitions:
+  - start_status: "DEV IN PROGRESS"
+    end_statuses:
+      - "QA PASS"
+      - "DONE"
+    name: "dev_to_done_time"
+  - start_status: "DEV IN PROGRESS"
+    end_statuses:
+      - "READY TO QA"
+    name: "dev_to_qa_ready_time"
+  - start_status: "DEV IN PROGRESS"
+    end_statuses:
+      - "READY TO CODE REVIEW"
+    name: "dev_to_code_review_time"
+  - start_status: "CODE REVIEW IN PROGRESS"
+    end_statuses:
+      - "READY TO QA"
+      - "CODE REVIEW DONE"
+    name: "code_review_time"
+  - start_status: "READY TO CODE REVIEW"
+    end_statuses:
+      - "CODE REVIEW IN PROGRESS"
+    name: "code_review_waiting_time"
+  - start_status: "QA IN PROGRESS"
+    end_statuses:
+      - "QA PASS"
+      - "QA FAIL"
+      - "DONE"
+      - "TO DO"
+      - "FAILED"
+    name: "qa_testing_time"
+  - start_status: "QA Testing Regression"
+    end_statuses:
+      - "QA FAILED"
+      - "DONE"
+    name: "qa_regression_testing_time"
+
+# Working hours configuration
+working_hours:
+  start: "08:30"
+  end: "17:30"
+  timezone: "Asia/Jakarta"
+  weekends: [Saturday, Sunday]
+
+# Story points field
+story_points_field: "customfield_10038"
+
+# Sprint field
+sprint_field: "customfield_10020"
+
+# Additional custom fields to fetch and include in reports
+# Run --discover-fields to find the correct field IDs for your JIRA instance
+additional_fields:
+  story_point_dev: "customfield_10143"  # e.g., "customfield_10016"
+  story_point_qa: "customfield_10144"   # e.g., "customfield_10017"
+  qa_tester: "customfield_10362"        # e.g., "customfield_10018"
+
+# QA Tester fallback configuration
+# If qa_tester field is empty, determine QA tester from changelog history
+qa_tester_fallback:
+  enabled: true
+  detect_status: "QA IN PROGRESS"  # Look for user who moved ticket TO this status
+
+# Date range filtering
+# Filter analysis to only include sprints that start within this date range
+date_range:
+  enabled: true  # Set to true to enable date range filtering
+  start_date: "2026-01-01"  # Only include sprints starting on or after this date
+  end_date: "2026-05-31"    # Only include sprints starting on or before this date
+
+# Anomaly detection settings
+anomaly_detection:
+  enabled: true
+  min_hours: 1.0
+  iqr_multiplier: 3.0
+  flag_weekend_activity: true

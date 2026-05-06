@@ -1,0 +1,376 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "JIRA-time-spent",
+    "languages": ["python", "yaml", "json", "markdown"],
+    "frameworks": ["JIRA"],
+    "description": "A Python CLI tool to analyze time spent on JIRA tickets with status transition tracking and business hours calculation.",
+    "analyzedAt": "2026-05-06T04:23:00Z",
+    "gitCommitHash": "not-a-git-repo"
+  },
+  "nodes": [
+    {
+      "id": "file:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Comprehensive documentation for the JIRA Time Tracker CLI tool, including installation, configuration, usage examples, troubleshooting, and feature descriptions.",
+      "tags": ["documentation", "user-guide", "cli-tool"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:default.yaml",
+      "type": "config",
+      "name": "default.yaml",
+      "filePath": "config/default.yaml",
+      "summary": "Main configuration file defining status transitions to track, working hours (08:00-17:00 Jakarta time), story points field, sprint field, additional custom fields (story_point_dev, story_point_qa, qa_tester), QA tester fallback settings, date range filtering, and anomaly detection settings.",
+      "tags": ["configuration", "status-transitions", "working-hours", "jira-fields"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:holidays.yaml",
+      "type": "config",
+      "name": "holidays.yaml",
+      "filePath": "config/holidays.yaml",
+      "summary": "Holiday configuration file listing company holidays to exclude from business hours calculations. Each entry has a date and name field.",
+      "tags": ["configuration", "holidays", "business-hours"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/config_manager.py",
+      "type": "file",
+      "name": "config_manager.py",
+      "filePath": "src/config_manager.py",
+      "summary": "Configuration management class that loads YAML configurations and environment variables. Provides nested key access with dot notation and properties for JIRA connection credentials (base_url, email, api_token, project). Validates required configuration on initialization.",
+      "tags": ["configuration", "yaml", "environment-variables"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/csv_exporter.py",
+      "type": "file",
+      "name": "csv_exporter.py",
+      "filePath": "src/csv_exporter.py",
+      "summary": "CSV export functionality that writes analysis results to files. Creates timestamped CSV files with all fields from results, handles dynamic field discovery, and writes to an outputs/ directory.",
+      "tags": ["export", "csv", "file-io"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/jira_client.py",
+      "type": "file",
+      "name": "jira_client.py",
+      "filePath": "src/jira_client.py",
+      "summary": "JIRA API client wrapper providing methods for fetching issues, issue history, testing connections, discovering fields, extracting sprint info, getting sprints, and filtering sprints by date range. Uses enhanced_search_issues with token-based pagination and proper error handling.",
+      "tags": ["jira-api", "issues", "sprints", "pagination"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/time_calculator.py",
+      "type": "file",
+      "name": "time_calculator.py",
+      "filePath": "src/time_calculator.py",
+      "summary": "Business hours calculator that computes elapsed time between status transitions. Configurable working hours (default 08:00-17:00 Jakarta timezone), excludes weekends and holidays. Handles status entry/exit tracking with _calculate_by_status_entry method for multiple transition types.",
+      "tags": ["time-calculation", "business-hours", "working-hours"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/jira_time_tracker.py",
+      "type": "file",
+      "name": "jira_time_tracker.py",
+      "filePath": "src/jira_time_tracker.py",
+      "summary": "Main CLI orchestration module that ties together all components. Implements JiraTimeTracker class coordinating JiraClient, TimeCalculator, and CsvExporter. Provides analyze() method for processing issues with status transition tracking. Supports multiple projects, sprint filtering, date range filtering, and regression task separation (QA Regression Task type). CLI with argparse for --project, --sprint, --group-by-sprint, --output, --quiet, --verbose options.",
+      "tags": ["cli", "orchestration", "main-entry"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:ConfigManager",
+      "type": "class",
+      "name": "ConfigManager",
+      "filePath": "src/config_manager.py",
+      "summary": "Configuration management class loading YAML configs and environment variables. Provides nested key access via get() method and JIRA credential properties (jira_base_url, jira_email, jira_api_token, jira_project). Validates required configuration on init.",
+      "tags": ["configuration", "settings"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:CsvExporter",
+      "type": "class",
+      "name": "CsvExporter",
+      "filePath": "src/csv_exporter.py",
+      "summary": "CSV export class that writes analysis results to timestamped files in outputs/ directory. Dynamically discovers all fields from results and handles empty result sets gracefully.",
+      "tags": ["export", "csv", "file-output"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:JiraClient",
+      "type": "class",
+      "name": "JiraClient",
+      "filePath": "src/jira_client.py",
+      "summary": "JIRA API client wrapper with enhanced_search_issues pagination. Methods: get_issues (fetch with sprint/status filters), get_issue_history (status transitions), test_connection, discover_fields (field metadata), extract_sprint_info (static method parsing complex sprint structures), get_sprints (fetch all boards/sprints), filter_sprints_by_date_range (date-filtered sprint list).",
+      "tags": ["jira", "api-client", "pagination"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:TimeCalculator",
+      "type": "class",
+      "name": "TimeCalculator",
+      "filePath": "src/time_calculator.py",
+      "summary": "Business hours calculator with configurable working hours and timezone. Tracks status entry/exit times, excludes weekends/holidays, and calculates elapsed business hours between transitions using _calculate_by_status_entry for multiple status pairs.",
+      "tags": ["time", "business-hours", "calculation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:JiraTimeTracker",
+      "type": "class",
+      "name": "JiraTimeTracker",
+      "filePath": "src/jira_time_tracker.py",
+      "summary": "Main orchestration class coordinating JiraClient, TimeCalculator, and CsvExporter. Analyzes issues with status transition tracking, supports multiple projects, sprint filtering, date range filtering, and regression task separation. Entry point for CLI analysis workflow.",
+      "tags": ["orchestration", "main", "coordinator"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:JiraClient.get_issues",
+      "type": "function",
+      "name": "get_issues",
+      "filePath": "src/jira_client.py",
+      "summary": "Fetch issues from JIRA using enhanced_search_issues with token-based pagination. Supports single/multiple projects, sprint filtering, custom field fetching. Builds JQL queries dynamically and handles pagination automatically.",
+      "tags": ["jira", "pagination", "search"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:JiraClient.get_issue_history",
+      "type": "function",
+      "name": "get_issue_history",
+      "filePath": "src/jira_client.py",
+      "summary": "Retrieve status transition history for a single issue via changelog expansion. Returns sorted list of history entries with timestamp, from/to status, and author name for status field changes only.",
+      "tags": ["jira", "changelog", "history"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:JiraTimeTracker.analyze",
+      "type": "function",
+      "name": "analyze",
+      "filePath": "src/jira_time_tracker.py",
+      "summary": "Core analysis method orchestrating issue fetching, history retrieval, time calculation, and result aggregation. Supports multiple projects, sprint/date filtering, regression task separation. Processes additional custom fields and QA tester fallback from changelog history.",
+      "tags": ["analysis", "orchestration", "main-logic"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:TimeCalculator.calculate",
+      "type": "function",
+      "name": "calculate",
+      "filePath": "src/time_calculator.py",
+      "summary": "Calculate business hours between status transitions for given history and configuration pair. Supports multiple status start/end pairs from config, tracks first entry into start status and first entry into end statuses.",
+      "tags": ["calculation", "time", "business-hours"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/jira_time_tracker.py",
+      "target": "file:src/jira_client.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/jira_time_tracker.py",
+      "target": "file:src/config_manager.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/jira_time_tracker.py",
+      "target": "file:src/time_calculator.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/jira_time_tracker.py",
+      "target": "file:src/csv_exporter.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "config:default.yaml",
+      "target": "file:src/config_manager.py",
+      "type": "configures",
+      "weight": 0.6
+    },
+    {
+      "source": "config:default.yaml",
+      "target": "file:src/jira_time_tracker.py",
+      "type": "configures",
+      "weight": 0.6
+    },
+    {
+      "source": "config:default.yaml",
+      "target": "file:src/time_calculator.py",
+      "type": "configures",
+      "weight": 0.6
+    },
+    {
+      "source": "config:holidays.yaml",
+      "target": "file:src/time_calculator.py",
+      "type": "configures",
+      "weight": 0.6
+    },
+    {
+      "source": "file:README.md",
+      "target": "file:src/jira_time_tracker.py",
+      "type": "documents",
+      "weight": 0.5
+    },
+    {
+      "source": "class:JiraTimeTracker",
+      "target": "class:JiraClient",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "class:JiraTimeTracker",
+      "target": "class:TimeCalculator",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "class:JiraTimeTracker",
+      "target": "class:CsvExporter",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "function:JiraTimeTracker.analyze",
+      "target": "function:JiraClient.get_issues",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "function:JiraTimeTracker.analyze",
+      "target": "function:JiraClient.get_issue_history",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "function:JiraTimeTracker.analyze",
+      "target": "function:TimeCalculator.calculate",
+      "type": "calls",
+      "weight": 0.8
+    },
+    {
+      "source": "function:JiraClient.get_issue_history",
+      "target": "class:JiraClient",
+      "type": "contained_in",
+      "weight": 1.0
+    },
+    {
+      "source": "function:JiraClient.get_issues",
+      "target": "class:JiraClient",
+      "type": "contained_in",
+      "weight": 1.0
+    },
+    {
+      "source": "function:TimeCalculator.calculate",
+      "target": "class:TimeCalculator",
+      "type": "contained_in",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/jira_time_tracker.py",
+      "target": "function:JiraTimeTracker.analyze",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/jira_client.py",
+      "target": "class:JiraClient",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config_manager.py",
+      "target": "class:ConfigManager",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/csv_exporter.py",
+      "target": "class:CsvExporter",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/time_calculator.py",
+      "target": "class:TimeCalculator",
+      "type": "contains",
+      "weight": 1.0
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:configuration",
+      "name": "Configuration",
+      "description": "Configuration files and settings management. Includes YAML configs, environment variables, and the ConfigManager class.",
+      "nodeIds": ["config:default.yaml", "config:holidays.yaml", "file:src/config_manager.py", "class:ConfigManager"]
+    },
+    {
+      "id": "layer:jira-integration",
+      "name": "JIRA Integration",
+      "description": "JIRA API client and issue fetching functionality. Handles authentication, pagination, sprint management, and issue history retrieval.",
+      "nodeIds": ["file:src/jira_client.py", "class:JiraClient", "function:JiraClient.get_issues", "function:JiraClient.get_issue_history"]
+    },
+    {
+      "id": "layer:business-logic",
+      "name": "Business Logic",
+      "description": "Core analysis and calculation logic. Time calculation with business hours, status transition tracking, and result processing.",
+      "nodeIds": ["file:src/time_calculator.py", "class:TimeCalculator", "function:TimeCalculator.calculate", "file:src/jira_time_tracker.py", "class:JiraTimeTracker", "function:JiraTimeTracker.analyze"]
+    },
+    {
+      "id": "layer:data-export",
+      "name": "Data Export",
+      "description": "CSV export functionality for writing analysis results to files.",
+      "nodeIds": ["file:src/csv_exporter.py", "class:CsvExporter"]
+    },
+    {
+      "id": "layer:documentation",
+      "name": "Documentation",
+      "description": "Project documentation and user guides.",
+      "nodeIds": ["file:README.md"]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Overview",
+      "description": "Start with the README to understand the JIRA Time Tracker's purpose: analyzing time spent on JIRA tickets with business hours calculation and status transition tracking.",
+      "nodeIds": ["file:README.md"]
+    },
+    {
+      "order": 2,
+      "title": "Configuration Setup",
+      "description": "Review the configuration system starting with the main default.yaml which defines status transitions, working hours, JIRA fields, and analysis settings. Then examine ConfigManager class that loads these configs and environment variables.",
+      "nodeIds": ["config:default.yaml", "file:src/config_manager.py", "class:ConfigManager"]
+    },
+    {
+      "order": 3,
+      "title": "JIRA API Integration",
+      "description": "Explore the JiraClient class which wraps the JIRA API with enhanced_search_issues pagination. Key methods include get_issues() for fetching tickets, get_issue_history() for status transitions, and sprint management functions.",
+      "nodeIds": ["file:src/jira_client.py", "class:JiraClient", "function:JiraClient.get_issues"]
+    },
+    {
+      "order": 4,
+      "title": "Time Calculation Engine",
+      "description": "Examine the TimeCalculator class that implements business hours calculation. It tracks status entry/exit times, excludes weekends and holidays from holidays.yaml, and computes elapsed time for configured status transitions.",
+      "nodeIds": ["file:src/time_calculator.py", "config:holidays.yaml", "class:TimeCalculator", "function:TimeCalculator.calculate"]
+    },
+    {
+      "order": 5,
+      "title": "Main Analysis Orchestration",
+      "description": "Study the JiraTimeTracker class and its analyze() method - the core orchestration logic. This coordinates all components: fetching issues via JiraClient, calculating time with TimeCalculator, and exporting results via CsvExporter.",
+      "nodeIds": ["file:src/jira_time_tracker.py", "class:JiraTimeTracker", "function:JiraTimeTracker.analyze"]
+    },
+    {
+      "order": 6,
+      "title": "Data Export",
+      "description": "Review the CsvExporter class that writes analysis results to CSV files with timestamped filenames in the outputs/ directory.",
+      "nodeIds": ["file:src/csv_exporter.py", "class:CsvExporter"]
+    }
+  ]
+}
