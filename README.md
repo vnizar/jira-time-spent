@@ -7,6 +7,8 @@ A Python CLI tool to analyze time spent on JIRA tickets, tracking status transit
 - **Status Transition Tracking**: Track time between any two statuses (e.g., "DEV IN PROGRESS" → "DONE")
 - **Business Hours Calculation**: Calculate working hours only (08:00-17:00 Jakarta time, excludes weekends/holidays)
 - **Assignee Tracking**: See who was assigned to each ticket
+- **Bug Tracking**: Count and categorize bugs linked to Task tickets (by Bug Label and Severity)
+- **Mandays Report**: Generate comprehensive reports with proposal vs actuals, developer/QA KPIs, and sprint summaries
 - **Anomaly Detection**: Identify tickets that were unusually fast or slow using statistical methods
 - **CSV Export**: Export results for further analysis in Excel or other tools
 
@@ -116,6 +118,93 @@ Group output by sprint (separate CSV per sprint):
 ```bash
 python -m src.jira_time_tracker --group-by-sprint
 ```
+
+Generate mandays report (proposal vs actuals, developer/QA KPIs, sprint summaries):
+
+```bash
+python -m src.jira_time_tracker --mandays-report
+```
+
+Compare actuals with proposal:
+
+```bash
+python -m src.jira_time_tracker --mandays-report --proposal proposal.json
+```
+
+Generate report for specific sprint:
+
+```bash
+python -m src.jira_time_tracker -p MYPROJECT -s "Sprint 1" --mandays-report
+```
+
+The mandays report generates two files:
+- `mandays_report_TIMESTAMP.txt` - Human-readable report with sprint summaries, proposal vs actuals, developer KPIs, and QA KPIs
+- `mandays_report_TIMESTAMP.csv` - Machine-readable CSV for further analysis
+
+**Proposal JSON format:**
+
+```json
+{
+  "sprints": {
+    "Sprint 1": {
+      "backend_hours": 40,
+      "frontend_hours": 32,
+      "mobile_hours": 24,
+      "qa_hours": 20
+    },
+    "Sprint 2": {
+      "backend_hours": 48,
+      "frontend_hours": 40,
+      "qa_hours": 24
+    }
+  }
+}
+```
+
+**Bug Tracking:**
+
+First, discover the field IDs for Bug Label and Severity:
+
+```bash
+python -m src.jira_time_tracker --discover-bug-fields
+```
+
+Add the discovered field IDs to `config/default.yaml`:
+
+```yaml
+bug_tracking:
+  bug_label_field: "customfield_10100"
+  severity_field: "customfield_10101"
+```
+
+Then run analysis with bug tracking enabled:
+
+```bash
+python -m src.jira_time_tracker --include-bugs
+```
+
+Combine bug tracking with mandays report:
+
+```bash
+python -m src.jira_time_tracker --include-bugs --mandays-report
+```
+
+Group by sprint with bug counts in each CSV:
+
+```bash
+python -m src.jira_time_tracker --include-bugs --group-by-sprint
+```
+
+The bug tracking feature adds these columns to CSV files:
+- `bug_count` - Total bugs linked to the task
+- `test_case_bug_count` - Bugs with Bug Label = "Test Case"
+- `blocker_bug_count` - Bugs with Severity = "Blocker"
+- `regular_bug_count` - All other bugs
+
+And adds a "Bug Summary" section to the mandays report with:
+- Bugs by Task table
+- Bugs by Sprint summary
+- Bug counts in Developer KPI table
 
 Enable anomaly detection:
 

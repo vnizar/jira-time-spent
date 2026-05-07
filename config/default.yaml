@@ -79,3 +79,21 @@ anomaly_detection:
   min_hours: 1.0
   iqr_multiplier: 3.0
   flag_weekend_activity: true
+
+# Bug tracking settings
+# When --include-bugs is used, fetch linked bugs for each Task/Story
+bug_tracking:
+  enabled: false  # Set to true to enable by default (or use --include-bugs flag)
+  link_type: ["Relates", "Blocks"]  # JIRA link types to follow (list of link type names)
+  target_issuetypes: ["Task", "Story"]  # Issue types to fetch bugs for
+  bug_issuetype: "Bug"  # Issue type to count as bugs
+
+  # Custom field IDs for bug categorization
+  # Run --discover-bug-fields to find the correct field IDs for your JIRA instance
+  bug_label_field: "customfield_10147"  # e.g., "customfield_10100"
+  severity_field: "customfield_10217"   # e.g., "customfield_10101"
+
+  # Filter values for bug categorization
+  test_case_label: "Test Case"  # Bugs with Bug Label = "Test Case"
+  blocker_severity: "Blocker"   # Bugs with Severity = "Blocker"
+

@@ -193,6 +193,173 @@ class JiraClient:
             logger.error(f"Failed to discover fields: {e}")
             return {}
 
+    def discover_field_id(self, field_name: str) -> Optional[str]:
+        """Find the custom field ID for a given field display name.
+
+        Args:
+            field_name: Display name (e.g., "Bug Label", "Severity")
+
+        Returns:
+            Field ID (e.g., "customfield_10020") or None
+        """
+        logger.info(f"Searching for field: '{field_name}'")
+
+        try:
+            all_fields = self.client.fields()
+            for field in all_fields:
+                if field["name"].lower() == field_name.lower():
+                    logger.info(f"Found field '{field_name}': ID = {field['id']}")
+                    return field["id"]
+            logger.warning(f"Field '{field_name}' not found")
+            return None
+
+        except JIRAError as e:
+            logger.error(f"Failed to search for field '{field_name}': {e}")
+            return None
+
+    def get_outward_links_with_details(
+        self,
+        issue_key: str,
+        link_types: List[str] = None,
+        bug_label_field: Optional[str] = None,
+        severity_field: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get linked bugs with their field details.
+
+        Handles both outward links (e.g., "relates to") and inward links (e.g., "blocks").
+
+        For "relates to": Bug is in outwardIssue (Task relates to Bug)
+        For "blocks": Bug is in inwardIssue (Bug blocks Task, so Task is "blocked by" Bug)
+
+        Args:
+            issue_key: The issue to query (typically a Task)
+            link_types: List of link type names (default: ["Relates", "Blocks"])
+            bug_label_field: Custom field ID for Bug Label
+            severity_field: Custom field ID for Severity
+
+        Returns:
+            List of dicts: [{key, summary, status, bug_label, severity}, ...]
+        """
+        if link_types is None:
+            link_types = ["Relates", "Blocks"]
+
+        try:
+            issue = self.client.issue(issue_key, expand="issuelinks")
+            linked_bugs = []
+            seen_bug_keys = set()  # Track to avoid duplicates
+
+            # Build fields list for bug fetching
+            bug_fields = ["issuetype", "summary", "status"]
+            if bug_label_field:
+                bug_fields.append(bug_label_field)
+            if severity_field:
+                bug_fields.append(severity_field)
+
+            # Normalize link types to lowercase for comparison
+            link_types_lower = [lt.lower() for lt in link_types]
+
+            for link in getattr(issue.fields, "issuelinks", []):
+                if not hasattr(link, "type"):
+                    continue
+
+                link_name = link.type.name.lower()
+                if link_name not in link_types_lower:
+                    continue
+
+                # Check outward issue (for "relates to" type links)
+                if hasattr(link, "outwardIssue"):
+                    bug_key = link.outwardIssue.key
+                    if bug_key in seen_bug_keys:
+                        continue
+
+                    try:
+                        bug = self.client.issue(bug_key, fields=bug_fields)
+
+                        # Only include if it's actually a Bug
+                        if hasattr(bug.fields, "issuetype") and bug.fields.issuetype.name == "Bug":
+                            bug_data = {
+                                "key": bug_key,
+                                "summary": getattr(bug.fields, "summary", ""),
+                                "status": getattr(bug.fields.status, "name", ""),
+                            }
+
+                            # Get custom field values
+                            bug_data["bug_label"] = self._get_field_value(bug, bug_label_field) if bug_label_field else None
+                            bug_data["severity"] = self._get_field_value(bug, severity_field) if severity_field else None
+
+                            linked_bugs.append(bug_data)
+                            seen_bug_keys.add(bug_key)
+                            logger.debug(f"Found outward bug: {bug_key} via {link.type.name}")
+
+                    except JIRAError as e:
+                        logger.warning(f"Failed to fetch details for bug {bug_key}: {e}")
+                        continue
+
+                # Check inward issue (for "blocks" type links - Bug blocks Task)
+                if hasattr(link, "inwardIssue"):
+                    bug_key = link.inwardIssue.key
+                    if bug_key in seen_bug_keys:
+                        continue
+
+                    try:
+                        bug = self.client.issue(bug_key, fields=bug_fields)
+
+                        # Only include if it's actually a Bug
+                        if hasattr(bug.fields, "issuetype") and bug.fields.issuetype.name == "Bug":
+                            bug_data = {
+                                "key": bug_key,
+                                "summary": getattr(bug.fields, "summary", ""),
+                                "status": getattr(bug.fields.status, "name", ""),
+                            }
+
+                            # Get custom field values
+                            bug_data["bug_label"] = self._get_field_value(bug, bug_label_field) if bug_label_field else None
+                            bug_data["severity"] = self._get_field_value(bug, severity_field) if severity_field else None
+
+                            linked_bugs.append(bug_data)
+                            seen_bug_keys.add(bug_key)
+                            logger.debug(f"Found inward bug: {bug_key} via {link.type.name}")
+
+                    except JIRAError as e:
+                        logger.warning(f"Failed to fetch details for bug {bug_key}: {e}")
+                        continue
+
+            logger.info(f"Found {len(linked_bugs)} bugs for {issue_key}")
+            return linked_bugs
+
+        except JIRAError as e:
+            logger.error(f"Failed to fetch links for {issue_key}: {e}")
+            return []
+
+    def _get_field_value(self, issue, field_id: str) -> Any:
+        """Get value of a field from an issue.
+
+        Args:
+            issue: JIRA issue object
+            field_id: Field ID to retrieve
+
+        Returns:
+            Field value or None
+        """
+        try:
+            value = getattr(issue.fields, field_id, None)
+            if value is None:
+                return None
+
+            # Handle different field value types
+            if hasattr(value, "name"):
+                return value.name
+            elif hasattr(value, "value"):
+                return value.value
+            elif isinstance(value, list):
+                return ", ".join(str(v) for v in value)
+            else:
+                return str(value) if value != "" else None
+
+        except Exception as e:
+            logger.debug(f"Error getting field {field_id}: {e}")
+            return None
+
     @staticmethod
     def extract_sprint_info(sprint_field: Any) -> Optional[str]:
         """Extract sprint name from JIRA sprint field.

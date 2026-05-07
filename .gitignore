@@ -35,7 +35,7 @@ env/
 *.swo
 
 # Outputs
-outputs/*.csv
+outputs/*
 
 # Logs
 *.log

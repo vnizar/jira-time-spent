@@ -10,6 +10,7 @@ import numpy as np
 from src.config_manager import ConfigManager
 from src.csv_exporter import CsvExporter
 from src.jira_client import JiraClient
+from src.mandays_reporter import MandaysReporter
 from src.time_calculator import TimeCalculator
 
 logger = logging.getLogger(__name__)
@@ -42,8 +43,9 @@ class JiraTimeTracker:
         )
 
         self.exporter = CsvExporter()
+        self.mandays_reporter = MandaysReporter(self.config)
 
-    def analyze(self, project=None, sprint: str = None) -> List[Dict[str, Any]]:
+    def analyze(self, project=None, sprint: str = None, include_bugs: bool = False) -> List[Dict[str, Any]]:
         """Analyze time spent on tickets in a project or multiple projects.
 
         Args:
@@ -211,6 +213,67 @@ class JiraTimeTracker:
                         column_name = transition.get("name", f"{from_status}_to_{to_status}")
                         result[column_name] = f"{hours}" if hours else "N/A"
 
+            # Bug counting (if enabled)
+            if include_bugs and result.get("issuetype") in ["Task", "Story"]:
+                # Get field IDs from config
+                bug_label_field = self.config.get("bug_tracking.bug_label_field")
+                severity_field = self.config.get("bug_tracking.severity_field")
+
+                # Get link types from config (should be a list)
+                link_types = self.config.get("bug_tracking.link_type", ["Relates", "Blocks"])
+                if isinstance(link_types, str):
+                    link_types = [link_types]
+
+                # Fetch linked bugs with details
+                linked_bugs = self.jira.get_outward_links_with_details(
+                    result["key"],
+                    link_types=link_types,
+                    bug_label_field=bug_label_field,
+                    severity_field=severity_field,
+                )
+
+                # Get filter values from config
+                test_case_label = self.config.get("bug_tracking.test_case_label", "Test Case")
+                blocker_severity = self.config.get("bug_tracking.blocker_severity", "Blocker")
+                # logger.info(f"Linked Bugs: {linked_bugs}")
+                # Categorize bugs
+                test_case_bugs = [
+                    b for b in linked_bugs
+                    if b.get("bug_label") == test_case_label
+                ]
+                blocker_bugs = [
+                    b for b in linked_bugs
+                    if b.get("severity") == blocker_severity
+                ]
+
+                # Regular bugs are those that are neither test case nor blocker
+                # Note: A bug could be both test case AND blocker - it counts in both categories
+                # Regular bugs = total - (test case only + blocker only + both)
+                # Actually, let's be more careful: we want to avoid double counting
+                # A bug is "regular" if it doesn't match either category
+                test_case_keys = {b["key"] for b in test_case_bugs}
+                blocker_keys = {b["key"] for b in blocker_bugs}
+                regular_bugs = [
+                    b for b in linked_bugs
+                    if b["key"] not in test_case_keys and b["key"] not in blocker_keys
+                ]
+
+                result["linked_bugs"] = [b["key"] for b in linked_bugs]
+                result["bug_count"] = len(linked_bugs)
+                result["test_case_bug_count"] = len(test_case_bugs)
+                result["blocker_bug_count"] = len(blocker_bugs)
+                result["regular_bug_count"] = len(regular_bugs)
+
+                # Store detailed bug info for potential later use
+                # result["bug_details"] = linked_bugs
+            else:
+                result["linked_bugs"] = []
+                result["bug_count"] = 0
+                result["test_case_bug_count"] = 0
+                result["blocker_bug_count"] = 0
+                result["regular_bug_count"] = 0
+                # result["bug_details"] = []
+
             results.append(result)
 
         logger.info(f"Analyzed {len(results)} tickets")
@@ -363,6 +426,9 @@ Examples:
   %(prog)s --detect-anomalies           # Find anomalous tickets
   %(prog)s -a -o report.csv             # Combine all analyses
   %(prog)s --discover-fields            # List all available JIRA fields
+  %(prog)s --mandays-report             # Generate mandays report (proposal vs actuals)
+  %(prog)s -m --proposal proposal.json  # Compare actuals with proposal
+  %(prog)s -p MYPROJ -s "Sprint 1" -m   # Generate report for specific sprint
 
 Environment Variables:
   JIRA_BASE_URL    JIRA instance URL
@@ -444,6 +510,32 @@ Environment Variables:
         "-d",
         action="store_true",
         help="Discover all available JIRA fields and their IDs",
+    )
+    parser.add_argument(
+        "--mandays-report",
+        "-m",
+        action="store_true",
+        help="Generate mandays report (proposal vs actuals, KPIs, summaries)",
+    )
+    parser.add_argument(
+        "--proposal",
+        metavar="FILE",
+        help="JSON file with proposed hours per sprint/role (for mandays report)",
+    )
+    parser.add_argument(
+        "--report-dir",
+        default="outputs",
+        help="Output directory for mandays report (default: outputs/)",
+    )
+    parser.add_argument(
+        "--discover-bug-fields",
+        action="store_true",
+        help="Discover field IDs for Bug Label and Severity fields",
+    )
+    parser.add_argument(
+        "--include-bugs",
+        action="store_true",
+        help="Fetch and count related bugs for each Task (uses issue links API)",
     )
 
     args = parser.parse_args()
@@ -570,6 +662,58 @@ Environment Variables:
 
         sys.exit(0)
 
+    # Discover bug fields mode
+    if args.discover_bug_fields:
+        if not args.quiet:
+            print("Discovering Bug Label and Severity field IDs...")
+
+        tracker = JiraTimeTracker(config_path=args.config)
+
+        if not tracker.jira.test_connection():
+            print("Error: Failed to connect to JIRA. Check your credentials.", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"\n{'='*60}")
+        print("BUG FIELD DISCOVERY")
+        print(f"{'='*60}\n")
+
+        # Search for Bug Label field
+        print("Searching for 'Bug Label' field...")
+        bug_label_id = tracker.jira.discover_field_id("Bug Label")
+        if bug_label_id:
+            print(f"  ✓ Found: Bug Label -> {bug_label_id}")
+        else:
+            print("  ✗ Not found. This field may not exist in your JIRA.")
+
+        # Search for Severity field
+        print("\nSearching for 'Severity' field...")
+        severity_id = tracker.jira.discover_field_id("Severity")
+        if severity_id:
+            print(f"  ✓ Found: Severity -> {severity_id}")
+        else:
+            print("  ✗ Not found. This field may not exist in your JIRA.")
+
+        print(f"\n{'='*60}")
+        print("CONFIGURATION")
+        print(f"{'='*60}\n")
+
+        if bug_label_id or severity_id:
+            print("Add the following to config/default.yaml:")
+            print("\nbug_tracking:")
+            if bug_label_id:
+                print(f'  bug_label_field: "{bug_label_id}"')
+            if severity_id:
+                print(f'  severity_field: "{severity_id}"')
+            print()
+        else:
+            print("No Bug Label or Severity fields found.")
+            print("Your JIRA may use different field names.")
+            print("\nTo find all custom fields, run:")
+            print("  python -m src.jira_time_tracker --discover-fields")
+            print()
+
+        sys.exit(0)
+
     try:
         # Initialize tracker
         if not args.quiet:
@@ -606,7 +750,7 @@ Environment Variables:
                 print(f"Sprint: {sprint}")
             print("Fetching issues...")
 
-        results = tracker.analyze(project=projects, sprint=sprint)
+        results = tracker.analyze(project=projects, sprint=sprint, include_bugs=args.include_bugs)
 
         if not args.quiet:
             print(f"Retrieved {len(results)} issues.")
@@ -750,6 +894,48 @@ Environment Variables:
                         print(f"  - {a['key']}: {a[args.anomaly_column]} ({a.get('anomaly_deviation', 'N/A')})")
             else:
                 print("\nNo anomalies detected.")
+
+        # Mandays report generation
+        if args.mandays_report:
+            if not args.quiet:
+                print("\nGenerating mandays report...")
+
+            try:
+                txt_path, csv_path = tracker.mandays_reporter.generate(
+                    results=results,
+                    proposal_path=args.proposal,
+                    output_dir=args.report_dir
+                )
+
+                if not args.quiet:
+                    print(f"\n{'='*60}")
+                    print(f"MANDAYS REPORT GENERATED")
+                    print(f"{'='*60}")
+                    print(f"Text report: {txt_path}")
+                    print(f"CSV summary: {csv_path}")
+
+                    # Show preview of the report
+                    with open(txt_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        preview_lines = content.split("\n")[:50]
+                        print(f"\n{'='*60}")
+                        print("REPORT PREVIEW (first 50 lines)")
+                        print(f"{'='*60}")
+                        print("\n".join(preview_lines))
+                        content_lines = content.split("\n")
+                        if len(content_lines) > 50:
+                            print(f"\n... ({len(content_lines) - 50} more lines)")
+                        print(f"{'='*60}\n")
+
+            except FileNotFoundError as e:
+                print(f"\nError: {e}", file=sys.stderr)
+                sys.exit(1)
+            except Exception as e:
+                print(f"\nError generating mandays report: {e}", file=sys.stderr)
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                sys.exit(1)
 
         if not args.quiet:
             print(f"\n{'='*60}")
