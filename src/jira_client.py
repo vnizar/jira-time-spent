@@ -119,6 +119,7 @@ class JiraClient:
                     if field.field == "status":
                         history.append(
                             {
+                                "key": issue_key,
                                 "timestamp": created,
                                 "from": field.fromString,
                                 "to": field.toString,

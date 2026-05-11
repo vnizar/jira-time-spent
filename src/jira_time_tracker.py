@@ -42,7 +42,7 @@ class JiraTimeTracker:
             holidays=self.config.get("holidays", []),
         )
 
-        self.exporter = CsvExporter()
+        self.exporter = CsvExporter(config=self.config)
         self.mandays_reporter = MandaysReporter(self.config)
 
     def analyze(self, project=None, sprint: str = None, include_bugs: bool = False) -> List[Dict[str, Any]]:
@@ -183,15 +183,28 @@ class JiraTimeTracker:
                             break
 
             # Calculate times for each transition
+            # Get paused statuses from config
+            paused_statuses = self.config.get("time_tracking.paused_statuses", [])
+            use_pause_tracking = paused_statuses and isinstance(paused_statuses, list)
+
             for transition in transitions:
                 # New format: start_status and end_statuses
                 if "start_status" in transition:
                     start_status = transition["start_status"]
                     end_statuses = transition.get("end_statuses", [])
 
-                    hours = self.calculator.calculate_transition_time(
-                        history, start_status=start_status, end_statuses=end_statuses
-                    )
+                    # Use pause/resume calculation if configured, otherwise use standard calculation
+                    if use_pause_tracking:
+                        hours = self.calculator.calculate_transition_time_with_pause(
+                            history,
+                            start_statuses=[start_status],
+                            end_statuses=end_statuses,
+                            paused_statuses=paused_statuses,
+                        )
+                    else:
+                        hours = self.calculator.calculate_transition_time(
+                            history, start_status=start_status, end_statuses=end_statuses
+                        )
 
                     column_name = transition.get("name", f"{start_status}_to_completion")
                     result[column_name] = f"{hours}" if hours else "N/A"
@@ -206,9 +219,17 @@ class JiraTimeTracker:
                     )
 
                     for to_status in to_statuses:
-                        hours = self.calculator.calculate_transition_time(
-                            history, from_status=from_status, to_status=to_status
-                        )
+                        if use_pause_tracking:
+                            hours = self.calculator.calculate_transition_time_with_pause(
+                                history,
+                                start_statuses=[from_status],
+                                end_statuses=[to_status],
+                                paused_statuses=paused_statuses,
+                            )
+                        else:
+                            hours = self.calculator.calculate_transition_time(
+                                history, from_status=from_status, to_status=to_status
+                            )
 
                         column_name = transition.get("name", f"{from_status}_to_{to_status}")
                         result[column_name] = f"{hours}" if hours else "N/A"
@@ -263,16 +284,12 @@ class JiraTimeTracker:
                 result["test_case_bug_count"] = len(test_case_bugs)
                 result["blocker_bug_count"] = len(blocker_bugs)
                 result["regular_bug_count"] = len(regular_bugs)
-
-                # Store detailed bug info for potential later use
-                # result["bug_details"] = linked_bugs
             else:
                 result["linked_bugs"] = []
                 result["bug_count"] = 0
                 result["test_case_bug_count"] = 0
                 result["blocker_bug_count"] = 0
                 result["regular_bug_count"] = 0
-                # result["bug_details"] = []
 
             results.append(result)
 

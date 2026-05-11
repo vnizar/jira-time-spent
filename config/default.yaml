@@ -31,8 +31,6 @@ status_transitions:
       - "QA PASS"
       - "QA FAIL"
       - "DONE"
-      - "TO DO"
-      - "FAILED"
     name: "qa_testing_time"
   - start_status: "QA Testing Regression"
     end_statuses:
@@ -46,6 +44,14 @@ working_hours:
   end: "17:30"
   timezone: "Asia/Jakarta"
   weekends: [Saturday, Sunday]
+
+# Time tracking pause/resume settings
+time_tracking:
+  # Statuses that pause time tracking
+  paused_statuses:
+    - "TO DO"
+    - "DROP/HOLD"
+    - "FAILED"
 
 # Story points field
 story_points_field: "customfield_10038"
@@ -97,3 +103,30 @@ bug_tracking:
   test_case_label: "Test Case"  # Bugs with Bug Label = "Test Case"
   blocker_severity: "Blocker"   # Bugs with Severity = "Blocker"
 
+# CSV export column order
+# Columns will appear in this order (if present in data)
+# If this section is removed or empty, columns will be sorted alphabetically
+csv_column_order:
+  - key
+  - project
+  - sprint
+  - summary
+  - issuetype
+  - status
+  - story_points
+  - bug_count
+  - test_case_bug_count
+  - blocker_bug_count
+  - regular_bug_count
+  - assignee
+  - story_point_dev
+  - dev_to_done_time
+  - dev_to_qa_ready_time
+  - dev_to_code_review_time
+  - code_review_time
+  - code_review_waiting_time
+  - qa_tester
+  - story_point_qa
+  - qa_testing_time
+  - qa_regression_testing_time
+  - linked_bugs

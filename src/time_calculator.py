@@ -185,3 +185,122 @@ class TimeCalculator:
             )
 
         return round(total_hours, 2)
+
+    def calculate_transition_time_with_pause(
+        self,
+        history: List[Dict],
+        start_statuses: List[str],
+        end_statuses: List[str],
+        paused_statuses: List[str],
+    ) -> Optional[float]:
+        """Calculate business hours between status transitions, excluding periods in paused statuses.
+
+        This method tracks multiple active/paused cycles and sums up only the active time.
+
+        Args:
+            history: List of history entries with timestamp and status
+            start_statuses: List of statuses that start/resume the timer
+            end_statuses: List of statuses that stop the timer
+            paused_statuses: List of statuses that pause the timer
+
+        Returns:
+            Hours elapsed (business hours, excluding paused periods) or None
+        """
+        if not history:
+            return None
+
+        # CRITICAL: Ensure history is sorted by timestamp
+        # The algorithm assumes chronological order for correct state tracking
+        issue_key = history[0].get("key", "unknown")
+        is_sorted = all(history[i]["timestamp"] <= history[i + 1]["timestamp"] for i in range(len(history) - 1))
+
+        if not is_sorted:
+            logger.warning(f"History for {issue_key} was not sorted. Re-sorting {len(history)} entries.")
+            history = sorted(history, key=lambda x: x["timestamp"])
+        else:
+            logger.debug(f"History for {issue_key} is properly sorted with {len(history)} entries")
+
+        # Remove exact duplicates (same timestamp + from + to)
+        seen = set()
+        unique_history = []
+        duplicate_count = 0
+
+        for entry in history:
+            # Create key from timestamp + from + to to identify exact duplicates
+            key = (entry['timestamp'], entry['from'], entry['to'])
+            if key not in seen:
+                seen.add(key)
+                unique_history.append(entry)
+            else:
+                duplicate_count += 1
+                logger.debug(f"  Duplicate entry removed: {entry['timestamp']} {entry['from']} → {entry['to']}")
+
+        if duplicate_count > 0:
+            logger.warning(f"Removed {duplicate_count} duplicate entries from {issue_key} (kept {len(unique_history)} unique)")
+
+        history = unique_history
+
+        # Debug: Log all history entries for problematic tickets
+        if logger.level <= logging.DEBUG:
+            for i, entry in enumerate(history):
+                logger.debug(f"  Entry {i}: {entry['timestamp']} {entry['from']} → {entry['to']}")
+
+        # Normalize status lists for comparison
+        start_statuses_lower = [s.lower() for s in start_statuses]
+        end_statuses_lower = [s.lower() for s in end_statuses]
+        paused_statuses_lower = [s.lower() for s in paused_statuses]
+
+        active_periods = []
+        currently_active = False
+        current_period_start = None
+
+        for entry in history:
+            status = entry["to"].lower()
+            timestamp = entry["timestamp"]
+
+            if entry["key"] == "POSKDS-3392":
+                logger.info(f"Processing entry: DATE {entry['timestamp']} FROM {entry['from']} TO {status} ACTIVE {currently_active}")
+            # Entering active status (start or resume)
+            if status in start_statuses_lower and not currently_active:
+                currently_active = True
+                current_period_start = timestamp
+                logger.debug(f"Start/resume timer at {current_period_start} when entering '{entry['to']}'")
+                if entry["key"] == "POSKDS-3392":
+                    logger.info(f"Start/resume timer at {current_period_start} when entering '{entry['to']}'")
+
+            # Exiting to end status (stop)
+            elif status in end_statuses_lower and currently_active:
+                if current_period_start:
+                    active_periods.append((current_period_start, timestamp))
+                    logger.debug(f"Stop timer at {timestamp} when entering '{entry['to']}'")
+                currently_active = False
+                current_period_start = None
+                if entry["key"] == "POSKDS-3392":
+                    logger.info(f"Stop timer at {timestamp} when entering '{entry['to']}'")
+                break  # Reached final status, stop processing
+
+            # Entering paused status
+            elif status in paused_statuses_lower and currently_active:
+                if current_period_start:
+                    active_periods.append((current_period_start, timestamp))
+                    logger.debug(f"Pause timer at {timestamp} when entering '{entry['to']}'")
+                if entry["key"] == "POSKDS-3392":
+                    logger.info(f"Pause timer at {timestamp} when entering '{entry['to']}'")
+                
+                currently_active = False
+                current_period_start = None
+
+        # If still active at end of history (ticket currently in active status)
+        if currently_active and current_period_start:
+            logger.debug(f"Timer still active at end of history for status '{history[-1]['to']}'")
+            # Don't count incomplete period
+
+        # Calculate total business hours across all active periods
+        total_hours = 0.0
+        for period_start, period_end in active_periods:
+            period_hours = self.calculate_business_hours(period_start, period_end)
+            total_hours += period_hours
+            logger.debug(f"Active period {period_start} to {period_end}: {period_hours}h")
+
+        return round(total_hours, 2) if total_hours > 0 else None
+

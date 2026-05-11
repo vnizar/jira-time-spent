@@ -12,17 +12,19 @@ logger = logging.getLogger(__name__)
 class CsvExporter:
     """Export time tracking results to CSV."""
 
-    def __init__(self, output_dir: str = None):
+    def __init__(self, output_dir: str = None, config=None):
         """Initialize CSV exporter.
 
         Args:
             output_dir: Directory for output files
+            config: Configuration dict (optional)
         """
         if output_dir is None:
             output_dir = Path(__file__).parent.parent / "outputs"
 
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.config = config
 
     def export(
         self,
@@ -52,7 +54,15 @@ class CsvExporter:
         fieldnames_set = set()
         for result in results:
             fieldnames_set.update(result.keys())
-        fieldnames = sorted(fieldnames_set)
+
+        # Use configured column order if available, otherwise use alphabetical
+        csv_column_order = self.config.get("csv_column_order", []) if self.config else []
+        if csv_column_order:
+            # Use configured order, skip fields that don't exist in data
+            fieldnames = [f for f in csv_column_order if f in fieldnames_set]
+        else:
+            # Default behavior: alphabetical order
+            fieldnames = sorted(fieldnames_set)
 
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
